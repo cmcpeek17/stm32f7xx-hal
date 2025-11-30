@@ -217,7 +217,7 @@ where
                 Parity::ParityNone => w.pce().disabled(),
             };
 
-            w.te().enabled().re().enabled().ue().enabled();
+            w.te().enabled().re().enabled().ue().enabled()
         });
 
         // Enable DMA
