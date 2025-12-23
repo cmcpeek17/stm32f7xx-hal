@@ -14,5 +14,6 @@
     "rust-analyzer.cargo.features": [
       "rtic",
       "stm32f767"
-    ]
+    ],
+    "rust-analyzer.checkOnSave": true
 }

@@ -2,7 +2,6 @@
 
 use crate::pac::{DBGMCU, IWDG};
 use core::fmt;
-use embedded_hal::watchdog::{Watchdog, WatchdogEnable};
 use fugit::MillisDurationU32 as MilliSeconds;
 
 /// Wraps the Independent Watchdog (IWDG) peripheral
@@ -109,19 +108,5 @@ impl IndependentWatchdog {
 
     pub fn feed(&mut self) {
         self.iwdg.kr.write(|w| unsafe { w.key().bits(KR_RELOAD) });
-    }
-}
-
-impl WatchdogEnable for IndependentWatchdog {
-    type Time = MilliSeconds;
-
-    fn start<T: Into<Self::Time>>(&mut self, period: T) {
-        self.start(period.into())
-    }
-}
-
-impl Watchdog for IndependentWatchdog {
-    fn feed(&mut self) {
-        self.feed()
     }
 }

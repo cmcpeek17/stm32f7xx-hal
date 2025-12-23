@@ -8,10 +8,11 @@ use core::pin::Pin;
 use core::ptr;
 
 use as_slice::{AsMutSlice, AsSlice};
+use embedded_io::ReadReady;
 
 use crate::dma;
-use crate::hal::prelude::*;
-use crate::hal::serial;
+//use crate::hal::prelude::*;
+use crate::hal_io as hal_io;
 use crate::pac;
 use crate::rcc::{BusClock, Enable, Reset};
 use crate::state;
@@ -25,7 +26,7 @@ use crate::rcc::Clocks;
 use crate::{BitsPerSecond, U32Ext};
 
 /// Serial error
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum Error {
     /// Framing error
@@ -36,6 +37,25 @@ pub enum Error {
     Overrun,
     /// Parity check error
     Parity,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        return Ok(());
+    }
+}
+
+impl core::error::Error for Error { }
+
+impl hal_io::Error for Error {
+    fn kind(&self) -> hal_io::ErrorKind {
+        match self {
+            Self::Framing => hal_io::ErrorKind::InvalidData,
+            Self::Noise => hal_io::ErrorKind::InvalidData,
+            Self::Overrun => hal_io::ErrorKind::Other,
+            Self::Parity => hal_io::ErrorKind::InvalidData,
+        }
+    }
 }
 
 pub trait Pins<U> {}
@@ -262,44 +282,54 @@ where
     }
 }
 
-impl<U, PINS> serial::Read<u8> for Serial<U, PINS>
+impl<U,PINS> hal_io::ErrorType for Serial<U, PINS> 
 where
     U: Instance,
 {
     type Error = Error;
+}
 
-    fn read(&mut self) -> nb::Result<u8, Error> {
+impl<U, PINS> hal_io::Read for Serial<U, PINS>
+where
+    U: Instance,
+{
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let mut rx: Rx<U> = Rx {
             _usart: PhantomData,
         };
-        rx.read()
+        return rx.read(buf);
     }
 }
 
-impl<U, PINS> serial::Write<u8> for Serial<U, PINS>
+impl<U, PINS> hal_io::Write for Serial<U, PINS>
 where
     U: Instance,
 {
-    type Error = Error;
-
-    fn flush(&mut self) -> nb::Result<(), Self::Error> {
+    fn flush(&mut self) -> Result<(), Self::Error> {
         let mut tx: Tx<U> = Tx {
             _usart: PhantomData,
         };
         tx.flush()
     }
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         let mut tx: Tx<U> = Tx {
             _usart: PhantomData,
         };
-        tx.write(byte)
+        tx.write(buf)
     }
 }
 
 /// Serial receiver
 pub struct Rx<U> {
     _usart: PhantomData<U>,
+}
+
+impl<U> hal_io::ErrorType for Rx<U> 
+where
+    U: Instance,
+{
+    type Error = Error;
 }
 
 impl<U> Rx<U>
@@ -340,13 +370,39 @@ where
     }
 }
 
-impl<U> serial::Read<u8> for Rx<U>
+impl<U> hal_io::ReadReady for Rx<U>
 where
     U: Instance,
 {
-    type Error = Error;
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        // NOTE(unsafe) atomic read with no side effects
+        let isr = unsafe { (*U::ptr()).isr.read() };
 
-    fn read(&mut self) -> nb::Result<u8, Error> {
+        if isr.rxne().bit_is_set() {
+            // NOTE(unsafe): Atomic read with no side effects
+            return Ok(false);
+        }
+
+        // TODO: this is not the correct error
+        return Err(Error::Framing);
+    }
+}
+
+impl<U> hal_io::Read for Rx<U>
+where
+    U: Instance,
+{
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+
+        loop {
+            match self.read_ready() {
+                Ok(_) => break,
+                // TODO: these errors are not correct
+                Err(Error::Framing) => (),
+                Err(_) => return Err(Error::Framing)
+            }
+        }
+
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*U::ptr()).isr.read() };
 
@@ -355,37 +411,40 @@ where
 
         if isr.pe().bit_is_set() {
             icr.write(|w| w.pecf().clear());
-            return Err(nb::Error::Other(Error::Parity));
+            return Err(Error::Parity);
         }
         if isr.fe().bit_is_set() {
             icr.write(|w| w.fecf().clear());
-            return Err(nb::Error::Other(Error::Framing));
+            return Err(Error::Framing);
         }
         if isr.nf().bit_is_set() {
             icr.write(|w| w.ncf().clear());
-            return Err(nb::Error::Other(Error::Noise));
+            return Err(Error::Noise);
         }
         if isr.ore().bit_is_set() {
             icr.write(|w| w.orecf().clear());
-            return Err(nb::Error::Other(Error::Overrun));
+            return Err(Error::Overrun);
         }
-
-        if isr.rxne().bit_is_set() {
-            // NOTE(unsafe): Atomic read with no side effects
-            return Ok(unsafe {
-                // Casting to `u8` should be fine, as we've configured the USART
-                // to use 8 data bits.
-                (*U::ptr()).rdr.read().rdr().bits() as u8
-            });
+        unsafe {
+            // Casting to `u8` should be fine, as we've configured the USART
+            // to use 8 data bits.
+            let data = (*U::ptr()).rdr.read().rdr().bits() as u8;
+            buf[0] = data;
         }
-
-        Err(nb::Error::WouldBlock)
+        return Ok(1);
     }
 }
 
 /// Serial transmitter
 pub struct Tx<U> {
     _usart: PhantomData<U>,
+}
+
+impl<U> hal_io::ErrorType for Tx<U> 
+where
+    U: Instance,
+{
+    type Error = Error;
 }
 
 impl<U> Tx<U>
@@ -429,34 +488,37 @@ where
     }
 }
 
-impl<U> serial::Write<u8> for Tx<U>
+impl<U> hal_io::Write for Tx<U>
 where
     U: Instance,
 {
-    type Error = Error;
-
-    fn flush(&mut self) -> nb::Result<(), Self::Error> {
+    fn flush(&mut self) -> Result<(), Self::Error> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*U::ptr()).isr.read() };
 
-        if isr.tc().bit_is_set() {
-            Ok(())
-        } else {
-            Err(nb::Error::WouldBlock)
+        loop {
+            if !isr.tc().bit_is_set() {
+                break;
+            }
         }
+        return Ok(());
     }
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         // NOTE(unsafe) atomic read with no side effects
         let isr = unsafe { (*U::ptr()).isr.read() };
 
         if isr.txe().bit_is_set() {
-            // NOTE(unsafe) atomic write to stateless register
-            // NOTE(write_volatile) 8-bit write that's not possible through the svd2rust API
-            unsafe { ptr::write_volatile(core::ptr::addr_of!((*U::ptr()).tdr) as *mut u8, byte) }
-            Ok(())
+            for byte in buf.iter() {
+                // NOTE(unsafe) atomic write to stateless register
+                // NOTE(write_volatile) 8-bit write that's not possible through the svd2rust API
+                unsafe { ptr::write_volatile(core::ptr::addr_of!((*U::ptr()).tdr) as *mut u8, byte.clone()) }
+                self.flush();
+            }
+            return Ok(buf.len());
         } else {
-            Err(nb::Error::WouldBlock)
+            // TODO: not the correct error type
+            return Err(Error::Framing);
         }
     }
 }
@@ -571,14 +633,4 @@ impl_instance! {
     UART5:  (uart5sel),
     USART6: (usart6sel),
     UART7:  (uart7sel),
-}
-
-impl<U> fmt::Write for Tx<U>
-where
-    Tx<U>: serial::Write<u8>,
-{
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let _ = s.as_bytes().iter().map(|c| block!(self.write(*c))).last();
-        Ok(())
-    }
 }

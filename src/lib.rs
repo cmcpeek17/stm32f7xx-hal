@@ -25,6 +25,7 @@ compile_error!(
 );
 
 pub(crate) use embedded_hal as hal;
+pub(crate) use embedded_io as hal_io;
 
 #[cfg(feature = "stm32f722")]
 pub use stm32f7::stm32f7x2 as pac;
@@ -141,8 +142,8 @@ pub mod timer;
 #[cfg(feature = "device-selected")]
 pub mod signature;
 
-#[cfg(feature = "device-selected")]
-pub mod i2c;
+//#[cfg(feature = "device-selected")]
+//pub mod i2c;
 
 #[cfg(feature = "device-selected")]
 pub mod rng;

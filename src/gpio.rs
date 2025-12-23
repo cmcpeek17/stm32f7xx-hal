@@ -66,9 +66,8 @@ mod erased;
 pub use erased::{EPin, ErasedPin};
 mod dynamic;
 pub use dynamic::{Dynamic, DynamicPin};
-mod hal_02;
 
-pub use embedded_hal::digital::v2::PinState;
+pub use embedded_hal::digital::PinState;
 
 use core::fmt;
 

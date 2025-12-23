@@ -7,10 +7,8 @@ pub use embedded_hal::spi::{Mode, Phase, Polarity};
 use core::{fmt, marker::PhantomData, ops::DerefMut, pin::Pin, ptr};
 
 use as_slice::{AsMutSlice, AsSlice as _};
-use embedded_hal::{
-    blocking::spi::{transfer, write, write_iter},
-    spi::FullDuplex,
-};
+use embedded_hal::spi::{ Operation};
+use embedded_hal::spi as spi_hal;
 
 use crate::{
     gpio::{self, Alternate},
@@ -184,45 +182,85 @@ where
     }
 }
 
-impl<I, P, Word> FullDuplex<Word> for Spi<I, P, Enabled<Word>>
+impl<I, P, Word> spi_hal::ErrorType for Spi<I, P, Enabled<Word>> 
 where
     I: Instance,
     P: Pins<I>,
-    Word: SupportedWordSize,
+    Word: SupportedWordSize
 {
     type Error = Error;
+}
 
-    fn read(&mut self) -> nb::Result<Word, Self::Error> {
-        self.spi.read()
+impl<I, P, Word> spi_hal::SpiDevice<Word> for Spi<I, P, Enabled<Word>>
+where
+    I: Instance,
+    P: Pins<I>,
+    Word: SupportedWordSize,
+{
+    fn transaction(&mut self, operations: &mut [spi_hal::Operation<'_, Word>]) -> Result<(), Self::Error> {
+        for op in operations {
+            match op {
+                spi_hal::Operation::Read ( in_words) => {
+                    for in_word in in_words.iter_mut() {
+                        match self.spi.read::<Word>() {
+                            Ok(word) => {
+                                *in_word = word;
+                            },
+                            Err(nb::Error::WouldBlock) => return Err(Error::Other),
+                            Err(nb::Error::Other(e)) => return Err(e),
+                        }
+                    }
+                }
+                &mut spi_hal::Operation::Write(out_words) => {
+                    for &out_word in out_words {
+                        match self.spi.send(out_word) {
+                            Ok(_) => (),
+                            Err(nb::Error::WouldBlock) => return Err(Error::ModeFault),
+                            Err(nb::Error::Other(e)) => return Err(e),
+                        }
+                    }
+                }
+                spi_hal::Operation::Transfer(in_words, out_words) => {
+
+                    if in_words.len() != out_words.len() {
+                        return Err(Error::Other);
+                    }
+
+                    for (&out_word, in_word) in out_words.iter().zip(in_words.iter_mut()) {
+                        match self.spi.send(out_word) {
+                            Ok(_) => {
+                                //let word: nb::Result<Word, Error> = self.spi.read();
+                                match self.spi.read() {
+                                    Ok(word) => {
+                                        *in_word = word;
+                                    },
+                                    Err(_) => return Err(Error::Other)
+                                }
+                            },
+                            Err(_) => return Err(Error::Other)
+                        }
+                    }
+                },
+                spi_hal::Operation::TransferInPlace(in_out_words) => {
+                    for in_out_word in in_out_words.iter_mut() {
+                        match self.spi.send(in_out_word.clone()) {
+                            Ok(_) => {
+                                match self.spi.read() {
+                                    Ok(word) => {
+                                        *in_out_word = word;
+                                    },
+                                    Err(_) => return Err(Error::Other)
+                                }
+                            },
+                            Err(_) => return Err(Error::Other)
+                        }
+                    }
+                }
+                spi_hal::Operation::DelayNs(delay) => return  Ok(())
+            }
+        }
+        return Ok(());
     }
-
-    fn send(&mut self, word: Word) -> nb::Result<(), Self::Error> {
-        self.spi.send(word)
-    }
-}
-
-impl<I, P, Word> transfer::Default<Word> for Spi<I, P, Enabled<Word>>
-where
-    I: Instance,
-    P: Pins<I>,
-    Word: SupportedWordSize,
-{
-}
-
-impl<I, P, Word> write::Default<Word> for Spi<I, P, Enabled<Word>>
-where
-    I: Instance,
-    P: Pins<I>,
-    Word: SupportedWordSize,
-{
-}
-
-impl<I, P, Word> write_iter::Default<Word> for Spi<I, P, Enabled<Word>>
-where
-    I: Instance,
-    P: Pins<I>,
-    Word: SupportedWordSize,
-{
 }
 
 impl<I, P, State> Spi<I, P, State>
@@ -597,6 +635,18 @@ pub enum Error {
     FrameFormat,
     Overrun,
     ModeFault,
+    Other
+}
+
+impl spi_hal::Error for Error {
+    fn kind(&self) -> spi_hal::ErrorKind {
+        match self {
+            Self::FrameFormat => spi_hal::ErrorKind::Other,
+            Self::Overrun => spi_hal::ErrorKind::Overrun,
+            Self::ModeFault => spi_hal::ErrorKind::ModeFault,
+            Self::Other => spi_hal::ErrorKind::Other,
+        }
+    }
 }
 
 /// RX token used for DMA transfers
@@ -749,7 +799,7 @@ where
 /// configured for.
 pub struct Enabled<Word>(PhantomData<Word>);
 
-pub trait SupportedWordSize: dma::SupportedWordSize + private::Sealed {
+pub trait SupportedWordSize: Copy + dma::SupportedWordSize + private::Sealed {
     fn frxth() -> cr2::FRXTH_A;
     fn ds() -> cr2::DS_A;
 }

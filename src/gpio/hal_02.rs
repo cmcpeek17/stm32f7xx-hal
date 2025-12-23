@@ -5,7 +5,7 @@ use super::{
     PartiallyErasedPin, Pin, PinState, PullDown, PullUp, PushPull,
 };
 
-use embedded_hal::digital::v2::{
+use embedded_hal::digital::{
     InputPin, IoPin, OutputPin, StatefulOutputPin, ToggleableOutputPin,
 };
 

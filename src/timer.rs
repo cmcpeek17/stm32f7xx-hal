@@ -26,8 +26,6 @@ pub mod monotonic;
 #[cfg(feature = "rtic")]
 pub use monotonic::*;
 
-mod hal_02;
-
 /// Timer wrapper
 pub struct Timer<TIM> {
     pub(crate) tim: TIM,

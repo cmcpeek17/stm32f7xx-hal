@@ -7,7 +7,6 @@ use crate::pac::{RCC, RNG};
 use crate::rcc::{Enable, Reset};
 use core::num::NonZeroU32;
 use core::ops::Shl;
-use embedded_hal::blocking::rng::Read;
 use rand_core::RngCore;
 
 #[derive(Debug)]
@@ -94,14 +93,6 @@ impl Rng {
 
     pub fn release(self) -> RNG {
         self.rb
-    }
-}
-
-impl Read for Rng {
-    type Error = rand_core::Error;
-
-    fn read(&mut self, buffer: &mut [u8]) -> Result<(), Self::Error> {
-        self.try_fill_bytes(buffer)
     }
 }
 
