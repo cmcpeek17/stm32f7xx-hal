@@ -513,7 +513,7 @@ where
                 // NOTE(unsafe) atomic write to stateless register
                 // NOTE(write_volatile) 8-bit write that's not possible through the svd2rust API
                 unsafe { ptr::write_volatile(core::ptr::addr_of!((*U::ptr()).tdr) as *mut u8, byte.clone()) }
-                self.flush();
+                self.flush()?;
             }
             return Ok(buf.len());
         } else {

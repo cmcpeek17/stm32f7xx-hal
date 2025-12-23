@@ -7,7 +7,6 @@ pub use embedded_hal::spi::{Mode, Phase, Polarity};
 use core::{fmt, marker::PhantomData, ops::DerefMut, pin::Pin, ptr};
 
 use as_slice::{AsMutSlice, AsSlice as _};
-use embedded_hal::spi::{ Operation};
 use embedded_hal::spi as spi_hal;
 
 use crate::{
@@ -193,7 +192,7 @@ where
 
 impl<I, P, Word> spi_hal::SpiDevice<Word> for Spi<I, P, Enabled<Word>>
 where
-    I: Instance,
+    I: Instance, 
     P: Pins<I>,
     Word: SupportedWordSize,
 {

@@ -1,19 +1,12 @@
 {
-    "rust.all_targets": false,
-    "rust.target": "thumbv7em-none-eabihf",
-    "rust.all_features": false,
-    "rust.features": [
-      "rtic",
-      "stm32f767"
-    ],
-    "rust-analyzer.checkOnSave.allTargets": false,
-    "rust-analyzer.checkOnSave.extraArgs": [
-        "--target",
+    "rust-analyzer.check.targets": [
         "thumbv7em-none-eabihf"
     ],
     "rust-analyzer.cargo.features": [
-      "rtic",
-      "stm32f767"
+      //"rtic",
+      "stm32f722"
     ],
-    "rust-analyzer.checkOnSave": true
+    "rust-analyzer.checkOnSave": true,
+    "rust-analyzer.diagnostics.previewRustcOutput": true,
+    "rust-analyzer.cargo.allTargets": false,
 }
