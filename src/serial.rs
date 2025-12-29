@@ -12,7 +12,7 @@ use embedded_io::ReadReady;
 
 use crate::dma;
 //use crate::hal::prelude::*;
-use crate::hal_io as hal_io;
+use crate::hal_io;
 use crate::pac;
 use crate::rcc::{BusClock, Enable, Reset};
 use crate::state;
@@ -45,7 +45,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl core::error::Error for Error { }
+impl core::error::Error for Error {}
 
 impl hal_io::Error for Error {
     fn kind(&self) -> hal_io::ErrorKind {
@@ -282,7 +282,7 @@ where
     }
 }
 
-impl<U,PINS> hal_io::ErrorType for Serial<U, PINS> 
+impl<U, PINS> hal_io::ErrorType for Serial<U, PINS>
 where
     U: Instance,
 {
@@ -325,7 +325,7 @@ pub struct Rx<U> {
     _usart: PhantomData<U>,
 }
 
-impl<U> hal_io::ErrorType for Rx<U> 
+impl<U> hal_io::ErrorType for Rx<U>
 where
     U: Instance,
 {
@@ -380,11 +380,10 @@ where
 
         if isr.rxne().bit_is_set() {
             // NOTE(unsafe): Atomic read with no side effects
+            return Ok(true);
+        } else {
             return Ok(false);
         }
-
-        // TODO: this is not the correct error
-        return Err(Error::Framing);
     }
 }
 
@@ -393,13 +392,11 @@ where
     U: Instance,
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-
         loop {
             match self.read_ready() {
                 Ok(_) => break,
-                // TODO: these errors are not correct
-                Err(Error::Framing) => (),
-                Err(_) => return Err(Error::Framing)
+                // this case should not be possible
+                Err(_) => (),
             }
         }
 
@@ -440,7 +437,7 @@ pub struct Tx<U> {
     _usart: PhantomData<U>,
 }
 
-impl<U> hal_io::ErrorType for Tx<U> 
+impl<U> hal_io::ErrorType for Tx<U>
 where
     U: Instance,
 {
@@ -512,7 +509,12 @@ where
             for byte in buf.iter() {
                 // NOTE(unsafe) atomic write to stateless register
                 // NOTE(write_volatile) 8-bit write that's not possible through the svd2rust API
-                unsafe { ptr::write_volatile(core::ptr::addr_of!((*U::ptr()).tdr) as *mut u8, byte.clone()) }
+                unsafe {
+                    ptr::write_volatile(
+                        core::ptr::addr_of!((*U::ptr()).tdr) as *mut u8,
+                        byte.clone(),
+                    )
+                }
                 self.flush()?;
             }
             return Ok(buf.len());

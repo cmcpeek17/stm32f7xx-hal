@@ -181,30 +181,33 @@ where
     }
 }
 
-impl<I, P, Word> spi_hal::ErrorType for Spi<I, P, Enabled<Word>> 
+impl<I, P, Word> spi_hal::ErrorType for Spi<I, P, Enabled<Word>>
 where
     I: Instance,
     P: Pins<I>,
-    Word: SupportedWordSize
+    Word: SupportedWordSize,
 {
     type Error = Error;
 }
 
 impl<I, P, Word> spi_hal::SpiDevice<Word> for Spi<I, P, Enabled<Word>>
 where
-    I: Instance, 
+    I: Instance,
     P: Pins<I>,
     Word: SupportedWordSize,
 {
-    fn transaction(&mut self, operations: &mut [spi_hal::Operation<'_, Word>]) -> Result<(), Self::Error> {
+    fn transaction(
+        &mut self,
+        operations: &mut [spi_hal::Operation<'_, Word>],
+    ) -> Result<(), Self::Error> {
         for op in operations {
             match op {
-                spi_hal::Operation::Read ( in_words) => {
+                spi_hal::Operation::Read(in_words) => {
                     for in_word in in_words.iter_mut() {
                         match self.spi.read::<Word>() {
                             Ok(word) => {
                                 *in_word = word;
-                            },
+                            }
                             Err(nb::Error::WouldBlock) => return Err(Error::Other),
                             Err(nb::Error::Other(e)) => return Err(e),
                         }
@@ -220,7 +223,6 @@ where
                     }
                 }
                 spi_hal::Operation::Transfer(in_words, out_words) => {
-
                     if in_words.len() != out_words.len() {
                         return Err(Error::Other);
                     }
@@ -232,30 +234,28 @@ where
                                 match self.spi.read() {
                                     Ok(word) => {
                                         *in_word = word;
-                                    },
-                                    Err(_) => return Err(Error::Other)
+                                    }
+                                    Err(_) => return Err(Error::Other),
                                 }
-                            },
-                            Err(_) => return Err(Error::Other)
-                        }
-                    }
-                },
-                spi_hal::Operation::TransferInPlace(in_out_words) => {
-                    for in_out_word in in_out_words.iter_mut() {
-                        match self.spi.send(in_out_word.clone()) {
-                            Ok(_) => {
-                                match self.spi.read() {
-                                    Ok(word) => {
-                                        *in_out_word = word;
-                                    },
-                                    Err(_) => return Err(Error::Other)
-                                }
-                            },
-                            Err(_) => return Err(Error::Other)
+                            }
+                            Err(_) => return Err(Error::Other),
                         }
                     }
                 }
-                spi_hal::Operation::DelayNs(delay) => return  Ok(())
+                spi_hal::Operation::TransferInPlace(in_out_words) => {
+                    for in_out_word in in_out_words.iter_mut() {
+                        match self.spi.send(in_out_word.clone()) {
+                            Ok(_) => match self.spi.read() {
+                                Ok(word) => {
+                                    *in_out_word = word;
+                                }
+                                Err(_) => return Err(Error::Other),
+                            },
+                            Err(_) => return Err(Error::Other),
+                        }
+                    }
+                }
+                spi_hal::Operation::DelayNs(delay) => return Ok(()),
             }
         }
         return Ok(());
@@ -634,7 +634,7 @@ pub enum Error {
     FrameFormat,
     Overrun,
     ModeFault,
-    Other
+    Other,
 }
 
 impl spi_hal::Error for Error {
