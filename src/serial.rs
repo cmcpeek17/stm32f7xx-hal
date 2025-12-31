@@ -301,6 +301,18 @@ where
     }
 }
 
+impl<U, PINS> hal_io::ReadReady for Serial<U, PINS>
+where
+    U: Instance,
+{
+    fn read_ready(&mut self) -> Result<bool, Self::Error> {
+        let mut rx: Rx<U> = Rx {
+            _usart: PhantomData,
+        };
+        return rx.read_ready();
+    }
+}
+
 impl<U, PINS> hal_io::Write for Serial<U, PINS>
 where
     U: Instance,
