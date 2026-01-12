@@ -523,7 +523,7 @@ where
         let isr = unsafe { (*U::ptr()).isr.read() };
 
         loop {
-            if !isr.tc().bit_is_set() {
+            if isr.tc().bit_is_set() {
                 break;
             }
         }
