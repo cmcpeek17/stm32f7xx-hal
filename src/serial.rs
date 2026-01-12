@@ -520,9 +520,9 @@ where
 {
     fn flush(&mut self) -> Result<(), Self::Error> {
         // NOTE(unsafe) atomic read with no side effects
-        let isr = unsafe { (*U::ptr()).isr.read() };
 
         loop {
+            let isr = unsafe { (*U::ptr()).isr.read() };
             if isr.tc().bit_is_set() {
                 break;
             }
