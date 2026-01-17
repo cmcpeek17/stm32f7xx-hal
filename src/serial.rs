@@ -535,13 +535,13 @@ where
         let isr = unsafe { (*U::ptr()).isr.read() };
 
         if isr.txe().bit_is_set() {
-            for byte in buf.iter() {
+            for &byte in buf.iter() {
                 // NOTE(unsafe) atomic write to stateless register
                 // NOTE(write_volatile) 8-bit write that's not possible through the svd2rust API
                 unsafe {
                     ptr::write_volatile(
                         core::ptr::addr_of!((*U::ptr()).tdr) as *mut u8,
-                        byte.clone(),
+                        byte,
                     )
                 }
                 self.flush()?;
