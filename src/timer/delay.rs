@@ -3,8 +3,8 @@
 use super::{FTimer, Instance, Timer};
 use core::ops::{Deref, DerefMut};
 use cortex_m::peripheral::SYST;
-use fugit::{ExtU32Ceil, MicrosDurationU32, TimerDurationU32};
 use embedded_hal::delay as delay_hal;
+use fugit::{ExtU32Ceil, MicrosDurationU32, TimerDurationU32};
 
 /// Timer as a delay provider (SysTick by default)
 pub struct SysDelay(Timer<SYST>);
@@ -123,11 +123,11 @@ impl<TIM: Instance, const FREQ: u32> Delay<TIM, FREQ> {
 }
 
 impl<TIM> delay_hal::DelayNs for DelayUs<TIM>
-where TIM: Instance
+where
+    TIM: Instance,
 {
     fn delay_ns(&mut self, ns: u32) {
         self.delay(ns.nanos_at_least());
-        
     }
 }
 

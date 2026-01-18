@@ -441,6 +441,26 @@ impl<const P: char, const N: u8, MODE> Pin<P, N, MODE> {
     }
 }
 
+use embedded_hal::digital as dig_hal;
+
+impl<const P: char, const N: u8, MODE> dig_hal::ErrorType for Pin<P, N, Output<MODE>> {
+    type Error = dig_hal::ErrorKind;
+}
+
+impl<const P: char, const N: u8, MODE> dig_hal::OutputPin for Pin<P, N, Output<MODE>> {
+    #[inline(always)]
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        self._set_high();
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        self._set_low();
+        Ok(())
+    }
+}
+
 impl<const P: char, const N: u8, MODE> Pin<P, N, Output<MODE>> {
     #[inline(always)]
     pub fn set_high(&mut self) {
