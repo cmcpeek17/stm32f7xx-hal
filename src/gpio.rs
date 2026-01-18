@@ -67,7 +67,9 @@ pub use erased::{EPin, ErasedPin};
 mod dynamic;
 pub use dynamic::{Dynamic, DynamicPin};
 
+use embedded_hal::digital as dig_hal;
 pub use embedded_hal::digital::PinState;
+
 
 use core::fmt;
 
@@ -440,8 +442,6 @@ impl<const P: char, const N: u8, MODE> Pin<P, N, MODE> {
         unsafe { (*Gpio::<P>::ptr()).idr.read().bits() & (1 << N) == 0 }
     }
 }
-
-use embedded_hal::digital as dig_hal;
 
 impl<const P: char, const N: u8, MODE> dig_hal::ErrorType for Pin<P, N, Output<MODE>> {
     type Error = dig_hal::ErrorKind;
