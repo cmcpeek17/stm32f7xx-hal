@@ -70,7 +70,6 @@ pub use dynamic::{Dynamic, DynamicPin};
 use embedded_hal::digital as dig_hal;
 pub use embedded_hal::digital::PinState;
 
-
 use core::fmt;
 
 /// A filler pin type

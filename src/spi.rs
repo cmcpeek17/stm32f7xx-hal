@@ -190,6 +190,94 @@ where
     type Error = Error;
 }
 
+impl<I, P, Word> spi_hal::SpiBus<Word> for Spi<I, P, Enabled<Word>>
+where
+    I: Instance,
+    P: Pins<I>,
+    Word: SupportedWordSize,
+{
+    fn read(&mut self, words: &mut [Word]) -> Result<(), Self::Error> {
+        for in_word in words.iter_mut() {
+            match self.spi.read::<Word>() {
+                Ok(word) => {
+                    *in_word = word;
+                }
+                Err(nb::Error::WouldBlock) => {
+                    return Err(Error::Other);
+                }
+                Err(nb::Error::Other(e)) => {
+                    return Err(e);
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    fn write(&mut self, words: &[Word]) -> Result<(), Self::Error> {
+        for &out_word in words {
+            match self.spi.send(out_word) {
+                Ok(_) => (),
+                Err(nb::Error::WouldBlock) => {
+                    return Err(Error::ModeFault);
+                }
+                Err(nb::Error::Other(e)) => {
+                    return Err(e);
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    fn transfer(&mut self, read: &mut [Word], write: &[Word]) -> Result<(), Self::Error> {
+        if read.len() != write.len() {
+            return Err(Error::Other);
+        }
+
+        for (&write_word, read_word) in write.iter().zip(read.iter_mut()) {
+            match self.spi.send(write_word) {
+                Ok(_) => {
+                    //let word: nb::Result<Word, Error> = self.spi.read();
+                    match self.spi.read() {
+                        Ok(word) => {
+                            *read_word = word;
+                        }
+                        Err(_) => {
+                            return Err(Error::Other);
+                        }
+                    }
+                }
+                Err(_) => {
+                    return Err(Error::Other);
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    fn transfer_in_place(&mut self, words: &mut [Word]) -> Result<(), Self::Error> {
+        for word in words.iter_mut() {
+            match self.spi.send(word.clone()) {
+                Ok(_) => match self.spi.read() {
+                    Ok(read) => {
+                        *word = read;
+                    }
+                    Err(_) => {
+                        return Err(Error::Other);
+                    }
+                },
+                Err(_) => {
+                    return Err(Error::Other);
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    fn flush(&mut self) -> Result<(), Self::Error> {
+        return Ok(());
+    }
+}
+
 impl<I, P, Word> spi_hal::SpiDevice<Word> for Spi<I, P, Enabled<Word>>
 where
     I: Instance,
