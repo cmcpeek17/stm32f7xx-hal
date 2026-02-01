@@ -252,8 +252,8 @@ where
                 Ok(_) => match self.spi.read::<Word>() {
                     Ok(_read) => {
                     }
+                    // Ignore any possible errors here. Read buffer just needs to be cleared
                     Err(_) => {
-                        return Err(Error::Other);
                     }
                 },
                 Err(_) => {
