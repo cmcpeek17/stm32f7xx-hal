@@ -196,38 +196,6 @@ where
     P: Pins<I>,
     Word: SupportedWordSize,
 {
-    fn read(&mut self, words: &mut [Word]) -> Result<(), Self::Error> {
-        for in_word in words.iter_mut() {
-            match self.spi.read::<Word>() {
-                Ok(word) => {
-                    *in_word = word;
-                }
-                Err(nb::Error::WouldBlock) => {
-                    return Err(Error::Other);
-                }
-                Err(nb::Error::Other(e)) => {
-                    return Err(e);
-                }
-            }
-        }
-        return Ok(());
-    }
-
-    fn write(&mut self, words: &[Word]) -> Result<(), Self::Error> {
-        for &out_word in words {
-            match self.spi.send(out_word) {
-                Ok(_) => (),
-                Err(nb::Error::WouldBlock) => {
-                    return Err(Error::ModeFault);
-                }
-                Err(nb::Error::Other(e)) => {
-                    return Err(e);
-                }
-            }
-        }
-        return Ok(());
-    }
-
     fn transfer(&mut self, read: &mut [Word], write: &[Word]) -> Result<(), Self::Error> {
         if read.len() != write.len() {
             return Err(Error::Other);
@@ -260,6 +228,29 @@ where
                 Ok(_) => match self.spi.read() {
                     Ok(read) => {
                         *word = read;
+                    }
+                    Err(_) => {
+                        return Err(Error::Other);
+                    }
+                },
+                Err(_) => {
+                    return Err(Error::Other);
+                }
+            }
+        }
+        return Ok(());
+    }
+
+    fn read(&mut self, words: &mut [Word]) -> Result<(), Self::Error> {
+        self.transfer_in_place(words)?;
+        return Ok(());
+    }
+
+    fn write(&mut self, words: &[Word]) -> Result<(), Self::Error> {
+        for word in words.iter() {
+            match self.spi.send(*word) {
+                Ok(_) => match self.spi.read::<Word>() {
+                    Ok(_read) => {
                     }
                     Err(_) => {
                         return Err(Error::Other);
