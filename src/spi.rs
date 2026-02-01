@@ -224,7 +224,7 @@ where
 
     fn transfer_in_place(&mut self, words: &mut [Word]) -> Result<(), Self::Error> {
         for word in words.iter_mut() {
-            match self.spi.send(word.clone()) {
+            match self.spi.send(*word) {
                 Ok(_) => match self.spi.read() {
                     Ok(read) => {
                         *word = read;
