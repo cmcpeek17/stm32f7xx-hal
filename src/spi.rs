@@ -283,12 +283,18 @@ where
             match op {
                 spi_hal::Operation::Read(in_words) => {
                     for in_word in in_words.iter_mut() {
-                        match self.spi.read::<Word>() {
-                            Ok(word) => {
-                                *in_word = word;
+                        let out_word: Word = Word::default();
+                        match self.spi.send(out_word) {
+                            Ok(_) => {
+                                //let word: nb::Result<Word, Error> = self.spi.read();
+                                match self.spi.read() {
+                                    Ok(word) => {
+                                        *in_word = word;
+                                    }
+                                    Err(_) => return Err(Error::Other),
+                                }
                             }
-                            Err(nb::Error::WouldBlock) => return Err(Error::Other),
-                            Err(nb::Error::Other(e)) => return Err(e),
+                            Err(_) => return Err(Error::Other),
                         }
                     }
                 }
@@ -877,7 +883,7 @@ where
 /// configured for.
 pub struct Enabled<Word>(PhantomData<Word>);
 
-pub trait SupportedWordSize: Copy + dma::SupportedWordSize + private::Sealed {
+pub trait SupportedWordSize: Copy + Default + dma::SupportedWordSize + private::Sealed {
     fn frxth() -> cr2::FRXTH_A;
     fn ds() -> cr2::DS_A;
 }
