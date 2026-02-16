@@ -265,7 +265,8 @@ where
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        return Ok(());
+        self.spi.flush_rx();
+        Ok(())
     }
 }
 
@@ -301,7 +302,12 @@ where
                 &mut spi_hal::Operation::Write(out_words) => {
                     for &out_word in out_words {
                         match self.spi.send(out_word) {
-                            Ok(_) => (),
+                            Ok(_) => {
+                                match self.spi.read::<Word>() {
+                                    Ok(_) => (),
+                                    Err(_) => return Err(Error::Other),
+                                }
+                            },
                             Err(nb::Error::WouldBlock) => return Err(Error::ModeFault),
                             Err(nb::Error::Other(e)) => return Err(e),
                         }
@@ -372,6 +378,8 @@ pub trait Instance {
     where
         Word: SupportedWordSize;
     fn dr_address(&self) -> u32;
+
+    fn flush_rx(&self);
 }
 
 /// Implemented for all tuples that contain a full set of valid SPI pins
@@ -549,6 +557,7 @@ macro_rules! impl_instance {
                             );
                         }
 
+                        while(self.sr.read().rxne().is_empty()){};
                         return Ok(())
                     }
 
@@ -557,6 +566,16 @@ macro_rules! impl_instance {
 
                 fn dr_address(&self) -> u32 {
                     core::ptr::addr_of!(self.dr) as u32
+                }
+
+                fn flush_rx(&self) {
+                    // Assumption here is that rxne will turn to 0 when this is read
+                    while(self.sr.read().rxne().is_not_empty())
+                    {
+                        let _ : u8 = unsafe {
+                            ptr::read_volatile(self.dr_address() as *mut _)
+                        };
+                    }
                 }
             }
 
